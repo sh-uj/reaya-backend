@@ -872,13 +872,23 @@ def link_family(link: FamilyLink):
 # عرض العائلة المرتبطة
 @app.get("/family/{elderly_id}")
 def get_family_members(elderly_id: str):
-    ref = db.reference("family_links")
-    links = ref.get() or {}
+
+    links_ref = db.reference("family_links")
+    users_ref = db.reference("users")
+
+    links = links_ref.get() or {}
     result = []
+
     for lid, data in links.items():
 
         if data.get("elderly_id") == elderly_id:
-            result.append(data)
+
+            family_id = data.get("family_member_id")
+
+            user = users_ref.child(family_id).get()
+
+            if user:
+                result.append(user.get("name"))
 
     return result
 
