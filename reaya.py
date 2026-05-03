@@ -863,18 +863,11 @@ def get_location_privacy(user_id: str):
 #Family APIs
 @app.post("/link-family")
 def link_family_by_phone(data: dict):
-
     elderly_id = data.get("elderly_id")
     phone = data.get("phone")
 
-    #  التحقق من المدخلات
-    if not elderly_id or not phone:
-        return {"message": "elderly_id and phone are required"}
+    users = db.reference("users").get() or {}
 
-    users_ref = db.reference("users")
-    users = users_ref.get() or {}
-
-    #  البحث عن المستخدم برقم الجوال
     family_member_id = None
 
     for uid, user in users.items():
@@ -882,23 +875,13 @@ def link_family_by_phone(data: dict):
             family_member_id = uid
             break
 
-    #  إذا ما حصلناه
     if not family_member_id:
         return {"message": "User with this phone not found"}
 
-    #  منع التكرار
-    links_ref = db.reference("family_links")
-    links = links_ref.get() or {}
-
-    for l in links.values():
-        if (l.get("elderly_id") == elderly_id and
-            l.get("family_member_id") == family_member_id):
-            return {"message": "Already linked"}
-
-    #  حفظ الرابط
-    new_link = links_ref.push({
+    #  هنا أهم نقطة
+    new_link = db.reference("family_links").push({
         "elderly_id": elderly_id,
-        "family_member_id": family_member_id
+        "family_member_id": family_member_id  # ← ID مو رقم
     })
 
     return {
