@@ -919,7 +919,19 @@ def get_family_members(elderly_id: str):
                 })
 
     return result
+@app.get("/my-elderly/{family_id}")
+def get_my_elderly(family_id: str):
+    links = db.reference("family_links").get() or {}
 
+    for link in links.values():
+        if link.get("family_member_id") == family_id:
+            return {
+                "elderly_id": link.get("elderly_id")
+            }
+
+    return {
+        "message": "No elderly linked"
+    }
 #Notification APIs
 #إنشاء إشعار جديد
 @app.post("/send-notification")
