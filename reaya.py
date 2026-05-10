@@ -150,7 +150,6 @@ class ChatRequest(BaseModel):
     message: str
 
 class FamilyReportRequest(BaseModel):
-    elderly_id: str
     family_member_id: str
     
 #Utility Functions
@@ -864,32 +863,28 @@ def get_location_privacy(user_id: str):
 @app.post("/link-family")
 def link_family_by_phone(data: dict):
 
-    family_phone = data.get("family_phone")
-    elderly_phone = data.get("elderly_phone")
+    elderly_id = data.get("elderly_id")
+    family_phone = data.get("phone")
 
     users = db.reference("users").get() or {}
 
-    family_id = None
-    elderly_id = None
+    family_member_id = None
 
-    # البحث عن الحسابين
+    # البحث عن فرد العائلة بالرقم
     for uid, user in users.items():
 
         if not isinstance(user, dict):
             continue
 
-        if user.get("phone") == family_phone and user.get("role") == "family":
-            family_id = uid
+        if (user.get("phone") == family_phone and
+            user.get("role") == "family"):
 
-        if user.get("phone") == elderly_phone and user.get("role") == "elderly":
-            elderly_id = uid
+            family_member_id = uid
+            break
 
     # التحقق
-    if not family_id:
+    if not family_member_id:
         return {"message": "Family member not found"}
-
-    if not elderly_id:
-        return {"message": "Elderly user not found"}
 
     # منع التكرار
     links_ref = db.reference("family_links")
@@ -897,29 +892,27 @@ def link_family_by_phone(data: dict):
 
     for link in links.values():
 
-        if (link.get("family_member_id") == family_id and
-            link.get("elderly_id") == elderly_id):
+        if (link.get("elderly_id") == elderly_id and
+            link.get("family_member_id") == family_member_id):
 
             return {
                 "message": "Already linked"
             }
 
-    # إنشاء الربط
+    # إنشاء الرابط
     new_link = links_ref.push({
-        "family_member_id": family_id,
-        "elderly_id": elderly_id
+        "elderly_id": elderly_id,
+        "family_member_id": family_member_id
     })
 
-    # حفظ معرف كبير السن داخل حساب فرد العائلة
-    db.reference("users").child(family_id).update({
-        "elderly_id": elderly_id,
-        "elderly_phone": elderly_phone
+    # حفظ بيانات كبير السن داخل حساب فرد العائلة
+    db.reference("users").child(family_member_id).update({
+        "elderly_id": elderly_id
     })
 
     return {
-        "message": "Linked successfully",
-        "link_id": new_link.key,
-        "elderly_id": elderly_id
+        "message": "Family member linked successfully",
+        "link_id": new_link.key
     }
 # عرض العائلة المرتبطة
 @app.get("/family/{elderly_id}")
@@ -1372,12 +1365,12 @@ async def voice_chat(file: UploadFile = File(...)):
         }
         
 @app.post("/family/generate-report")
-def generate_family_report(data: dict):
-
-    family_member_id = data.get("family_member_id")
+def generate_family_report(data: FamilyReportRequest):
 
     # جلب بيانات فرد العائلة
-    family_user = db.reference("users").child(family_member_id).get()
+    family_user = db.reference("users").child(
+        data.family_member_id
+    ).get()
 
     if not family_user:
         return {"message": "Family member not found"}
@@ -1387,7 +1380,7 @@ def generate_family_report(data: dict):
     if not elderly_id:
         return {"message": "No elderly linked"}
 
-    # استدعاء التقرير
+    # توليد التقرير
     return generate_report(
         AIRequest(user_id=elderly_id)
     )
