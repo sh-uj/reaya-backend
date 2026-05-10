@@ -863,32 +863,64 @@ def get_location_privacy(user_id: str):
 #Family APIs
 @app.post("/link-family")
 def link_family_by_phone(data: dict):
-    elderly_id = data.get("elderly_id")
-    phone = data.get("phone")
+
+    family_phone = data.get("family_phone")
+    elderly_phone = data.get("elderly_phone")
 
     users = db.reference("users").get() or {}
 
-    family_member_id = None
+    family_id = None
+    elderly_id = None
 
+    # البحث عن الحسابين
     for uid, user in users.items():
-        if isinstance(user, dict) and user.get("phone") == phone:
-            family_member_id = uid
-            break
 
-    if not family_member_id:
-        return {"message": "User with this phone not found"}
+        if not isinstance(user, dict):
+            continue
 
-    #  هنا أهم نقطة
-    new_link = db.reference("family_links").push({
+        if user.get("phone") == family_phone and user.get("role") == "family":
+            family_id = uid
+
+        if user.get("phone") == elderly_phone and user.get("role") == "elderly":
+            elderly_id = uid
+
+    # التحقق
+    if not family_id:
+        return {"message": "Family member not found"}
+
+    if not elderly_id:
+        return {"message": "Elderly user not found"}
+
+    # منع التكرار
+    links_ref = db.reference("family_links")
+    links = links_ref.get() or {}
+
+    for link in links.values():
+
+        if (link.get("family_member_id") == family_id and
+            link.get("elderly_id") == elderly_id):
+
+            return {
+                "message": "Already linked"
+            }
+
+    # إنشاء الربط
+    new_link = links_ref.push({
+        "family_member_id": family_id,
+        "elderly_id": elderly_id
+    })
+
+    # حفظ معرف كبير السن داخل حساب فرد العائلة
+    db.reference("users").child(family_id).update({
         "elderly_id": elderly_id,
-        "family_member_id": family_member_id  # ← ID مو رقم
+        "elderly_phone": elderly_phone
     })
 
     return {
-        "message": "Family member linked successfully",
-        "link_id": new_link.key
+        "message": "Linked successfully",
+        "link_id": new_link.key,
+        "elderly_id": elderly_id
     }
-
 # عرض العائلة المرتبطة
 @app.get("/family/{elderly_id}")
 def get_family_members(elderly_id: str):
@@ -1340,24 +1372,25 @@ async def voice_chat(file: UploadFile = File(...)):
         }
         
 @app.post("/family/generate-report")
-def generate_family_report(data: FamilyReportRequest):
+def generate_family_report(data: dict):
 
-    # التحقق من وجود علاقة
-    links = db.reference("family_links").get() or {}
+    family_member_id = data.get("family_member_id")
 
-    is_linked = False
+    # جلب بيانات فرد العائلة
+    family_user = db.reference("users").child(family_member_id).get()
 
-    for link in links.values():
-        if (link.get("elderly_id") == data.elderly_id and
-            link.get("family_member_id") == data.family_member_id):
-            is_linked = True
-            break
+    if not family_user:
+        return {"message": "Family member not found"}
 
-    if not is_linked:
-        return {"message": "Not authorized to view this report"}
+    elderly_id = family_user.get("elderly_id")
 
-    # استدعاء نفس دالة generate_report
-    return generate_report(AIRequest(user_id=data.elderly_id))
+    if not elderly_id:
+        return {"message": "No elderly linked"}
+
+    # استدعاء التقرير
+    return generate_report(
+        AIRequest(user_id=elderly_id)
+    )
 # ----
 # تهيئة قاعدة البيانات
 @app.post("/init-database")
