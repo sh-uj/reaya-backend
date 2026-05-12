@@ -778,6 +778,12 @@ def get_live_location_for_family(family_id: str):
     if not elderly_id:
         return {"message": "No elderly linked"}
 
+    # التحقق من الخصوصية
+    privacy = db.reference("location_privacy").child(elderly_id).get()
+
+    if privacy and not privacy.get("allow_family", True):
+        return {"message": "Location sharing disabled"}
+
     # جلب الموقع الحالي
     location = db.reference("locations").child(elderly_id).get()
 
