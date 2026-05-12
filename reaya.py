@@ -760,7 +760,35 @@ def get_location(user_id: str):
         return {"message": "Location not found"}
 
     return location
+@app.get("/family/live-location/{family_id}")
+def get_live_location_for_family(family_id: str):
 
+    # جلب الرابط
+    links = db.reference("family_links").get() or {}
+
+    elderly_id = None
+
+    for link in links.values():
+
+        if link.get("family_member_id") == family_id:
+
+            elderly_id = link.get("elderly_id")
+            break
+
+    if not elderly_id:
+        return {"message": "No elderly linked"}
+
+    # جلب الموقع الحالي
+    location = db.reference("locations").child(elderly_id).get()
+
+    if not location:
+        return {"message": "Location not found"}
+
+    return {
+        "elderly_id": elderly_id,
+        "latitude": location.get("latitude"),
+        "longitude": location.get("longitude")
+    }
 #Safe Zone APIs
 # حفظ موقع المنزل
 @app.post("/safe-zone")
