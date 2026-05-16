@@ -450,7 +450,7 @@ def create_water_reminders(user_id: str):
 
     ref = db.reference("reminders")
 
-    # أوقات مقترحة (تقدري تعدليها)
+    # 
     times = [
         ("08:00", "08:10"),
         ("11:00", "11:10"),
